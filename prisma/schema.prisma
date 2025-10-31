@@ -1,0 +1,50 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  type       String // "flashcards" or "quiz"
+  difficulty String // "easy", "medium", "hard"
+  tags       String? // comma-separated tags
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  flashcards Flashcard[]
+  quizzes    Quiz[]
+
+  @@map("sessions")
+}
+
+model Flashcard {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  sessionId String
+  createdAt DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("flashcards")
+}
+
+model Quiz {
+  id        String   @id @default(cuid())
+  question  String
+  options   String[] // Array of 4 options
+  correct   Int // Index of correct answer (0-3)
+  sessionId String
+  createdAt DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("quizzes")
+}

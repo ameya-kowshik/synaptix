@@ -1,36 +1,109 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AutoLearn - AI-Powered Study Tools
+
+AutoLearn is a minimalistic web application that uses Generative AI to transform study material into interactive learning tools. Upload PDFs or paste text to generate flashcards and quizzes instantly.
+
+## Features
+
+- **Flashcard Generation**: Create interactive Q&A flashcards from your study material
+- **Quiz Generation**: Generate multiple-choice quizzes with AI-powered feedback
+- **Difficulty Levels**: Choose from Easy, Medium, or Hard difficulty levels
+- **Dark Theme**: Clean, distraction-free dark interface
+- **Responsive Design**: Works seamlessly on desktop and mobile devices
+
+## Tech Stack
+
+- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS
+- **UI Components**: Radix UI primitives with ShadCN styling
+- **Backend**: Next.js API routes
+- **Database**: PostgreSQL with Prisma ORM
+- **AI**: Groq API for content generation
+- **Styling**: Tailwind CSS with dark theme
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
+- Node.js 18+ 
+- PostgreSQL database
+- Groq API key
+
+### Installation
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <repository-url>
+cd autolearn
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Set up environment variables:
+```bash
+npm run setup
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Edit both `.env.local` and `.env` with your configuration:
+```env
+# .env.local (for Next.js runtime)
+DATABASE_URL="postgresql://username:password@localhost:5432/autolearn"
+GROQ_API_KEY="your_groq_api_key_here"
+GEMINI_API_KEY="your_gemini_api_key_here"
 
-## Learn More
+# .env (for Prisma CLI)
+DATABASE_URL="postgresql://username:password@localhost:5432/autolearn"
+```
 
-To learn more about Next.js, take a look at the following resources:
+**Note**: You need both files because Next.js reads `.env.local` at runtime, but Prisma CLI reads `.env`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+4. Set up the database:
+```bash
+npx prisma generate
+npx prisma db push
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+5. Run the development server:
+```bash
+npm run dev
+```
 
-## Deploy on Vercel
+Open [http://localhost:3000](http://localhost:3000) to see the application.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Note**: If port 3000 is in use, Next.js will automatically use the next available port (e.g., 3001).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Usage
+
+1. **Choose Mode**: Select either "Flashcards" or "Quiz" tab
+2. **Input Content**: Upload a PDF or paste your study material
+3. **Set Parameters**: Choose difficulty level, number of items, and optional tags
+4. **Generate**: Click generate and wait for AI processing
+5. **Study**: Review your generated flashcards or take the quiz
+6. **Get Feedback**: Receive AI-generated performance feedback for quizzes
+
+## API Endpoints
+
+- `POST /api/generate/flashcards` - Generate flashcards from content
+- `POST /api/generate/quiz` - Generate quiz questions from content
+- `GET /api/session/[sessionId]` - Retrieve session data
+- `POST /api/feedback` - Generate quiz performance feedback
+
+## Database Schema
+
+The application uses three main models:
+- **Session**: Stores generation sessions with metadata
+- **Flashcard**: Stores individual flashcard Q&A pairs
+- **Quiz**: Stores quiz questions with multiple choice options
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
