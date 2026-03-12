@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+import { Navigation } from '@/components/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, FileText, Brain, Calendar, Tag } from 'lucide-react'
+import { ArrowLeft, FileText, Brain, Calendar, Tag, Lock } from 'lucide-react'
 
 interface Session {
   id: string
@@ -18,17 +20,31 @@ interface Session {
 
 export default function HistoryPage() {
   const router = useRouter()
+  const { data: session, status } = useSession()
   const [sessions, setSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
   useEffect(() => {
+    if (status === "loading") return // Still loading session
+    
+    if (!session) {
+      setLoading(false)
+      return // Not authenticated
+    }
+    
     fetchSessions()
-  }, [])
+  }, [session, status])
 
   const fetchSessions = async () => {
     try {
       const response = await fetch('/api/sessions')
+      if (response.status === 401) {
+        setError("Please sign in to view your study history")
+        setLoading(false)
+        return
+      }
+      
       if (response.ok) {
         const data = await response.json()
         setSessions(data.sessions)
@@ -71,6 +87,7 @@ export default function HistoryPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Navigation />
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
@@ -88,8 +105,22 @@ export default function HistoryPage() {
             <div className="w-24" /> {/* Spacer */}
           </div>
 
+          {/* Authentication Required State */}
+          {!session && status !== "loading" && (
+            <div className="text-center py-12">
+              <Lock className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+              <h2 className="text-2xl font-semibold mb-2">Sign In Required</h2>
+              <p className="text-muted-foreground mb-6">
+                Please sign in to view your study history and saved sessions
+              </p>
+              <Button onClick={() => router.push('/auth/signin')}>
+                Sign In
+              </Button>
+            </div>
+          )}
+
           {/* Error State */}
-          {error && (
+          {error && session && (
             <div className="text-center py-8">
               <p className="text-destructive mb-4">{error}</p>
               <Button onClick={fetchSessions}>Try Again</Button>
@@ -97,7 +128,7 @@ export default function HistoryPage() {
           )}
 
           {/* Empty State */}
-          {!error && sessions.length === 0 && (
+          {!error && session && sessions.length === 0 && (
             <div className="text-center py-12">
               <Brain className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
               <h2 className="text-2xl font-semibold mb-2">No Study Sessions Yet</h2>
@@ -111,7 +142,7 @@ export default function HistoryPage() {
           )}
 
           {/* Sessions Grid */}
-          {sessions.length > 0 && (
+          {session && sessions.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {sessions.map((session) => (
                 <Card 

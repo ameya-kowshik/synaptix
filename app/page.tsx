@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
+import { Navigation } from "@/components/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,6 +14,7 @@ import { Upload, FileText, Sparkles, AlertCircle } from "lucide-react"
 
 export default function Home() {
   const router = useRouter()
+  const { data: session, status } = useSession()
   const [activeTab, setActiveTab] = useState("flashcards")
   const [textInput, setTextInput] = useState("")
   const [difficulty, setDifficulty] = useState("medium")
@@ -160,20 +163,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Navigation />
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="flex justify-end mb-4">
-              <Button 
-                variant="outline" 
-                onClick={() => router.push('/history')}
-                className="flex items-center gap-2"
-              >
-                <FileText className="h-4 w-4" />
-                Study History
-              </Button>
-            </div>
             <h1 className="text-4xl font-bold mb-2 flex items-center justify-center gap-2">
               <Sparkles className="h-8 w-8 text-primary" />
               AutoLearn
@@ -181,6 +175,11 @@ export default function Home() {
             <p className="text-muted-foreground text-lg">
               Transform your study materials into interactive learning tools using AI
             </p>
+            {!session && status !== "loading" && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Sign in to save your progress and access advanced features
+              </p>
+            )}
           </div>
 
           {/* Main Content */}

@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { generateQuiz } from '@/lib/ai'
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth()
+    
+    // Allow anonymous users but track them if authenticated
+    const userId = session?.user?.id
+
     const body = await request.json()
     const { content, difficulty, count, tags } = body
 
@@ -22,9 +28,10 @@ export async function POST(request: NextRequest) {
       tags
     )
 
-    // Create session in database
-    const session = await prisma.session.create({
+    // Create study session in database
+    const studySession = await prisma.studySession.create({
       data: {
+        ...(userId && { userId }),
         type: 'quiz',
         difficulty,
         tags: tags || null,
@@ -42,8 +49,8 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json({
-      sessionId: session.id,
-      quiz: session.quizzes
+      sessionId: studySession.id,
+      quiz: studySession.quizzes
     })
 
   } catch (error) {
