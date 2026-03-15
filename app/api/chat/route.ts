@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Save user message
-    await prisma.message.create({
+    const newUserMessage = await prisma.message.create({
       data: {
         conversationId: conversation.id,
         role: "user",
@@ -70,31 +70,30 @@ export async function POST(request: NextRequest) {
     })
 
     // 5. Build conversation history for context
-    const history = conversation.messages
-      .map(msg => `${msg.role === "user" ? "Student" : "Tutor"}: ${msg.content}`)
-      .join("\n")
+    // Include all previous messages + the new user message
+    const allMessages = [...conversation.messages, newUserMessage]
 
     // 6. Create AI prompt
     const groq = createChatModel()
 
     const systemPrompt = `You are an expert AI tutor helping a student learn. Be encouraging, clear, and use the Socratic method when appropriate.`
 
-    // Build messages array
+    // Build messages array with proper format
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
       { role: "system", content: systemPrompt },
     ]
 
-    // Add history if exists
-    if (history) {
-      messages.push({ role: "assistant", content: `Previous conversation:\n${history}` })
+    // Add conversation history in proper format
+    for (const msg of allMessages) {
+      messages.push({
+        role: msg.role === "user" ? "user" : "assistant",
+        content: msg.content,
+      })
     }
-
-    // Add current user message
-    messages.push({ role: "user", content: message })
 
     // 7. Get AI response using Groq SDK directly
     const completion = await groq.chat.completions.create({
-      model: "llama-3.1-70b-versatile",
+      model: "llama-3.3-70b-versatile",
       messages,
       temperature: 0.7,
       max_tokens: 1024,

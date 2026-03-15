@@ -3,7 +3,7 @@
 import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { User, LogOut, History, Settings } from "lucide-react"
+import { User, LogOut, History, MessageSquare } from "lucide-react"
 
 export function Navigation() {
   const { data: session, status } = useSession()
@@ -34,6 +34,15 @@ export function Navigation() {
           <div className="flex items-center gap-4">
             {session ? (
               <>
+
+               
+                <Link href="/chat">
+                  <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    Chat
+                  </Button>
+                </Link>
+                
                 <Link href="/history">
                   <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
                     <History className="w-4 h-4 mr-2" />
