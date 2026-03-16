@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { ChatInterface } from "@/components/chat/chat-interface"
 import { Button } from "@/components/ui/button"
@@ -18,19 +18,37 @@ interface Conversation {
 
 export default function ChatPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const [conversations, setConversations] = React.useState<Conversation[]>([])
   const [activeConversationId, setActiveConversationId] = React.useState<string>()
+  const [chatKey, setChatKey] = React.useState(0)
+  const [studyMaterial, setStudyMaterial] = React.useState<string>()
   const [loading, setLoading] = React.useState(true)
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
 
   React.useEffect(() => {
     if (status === "authenticated") {
       fetchConversations()
+      // Load study material from session if sessionId is in URL
+      const sessionId = searchParams.get("sessionId")
+      if (sessionId) fetchStudyMaterial(sessionId)
     } else if (status === "unauthenticated") {
       router.push("/auth/signin")
     }
-  }, [status, router])
+  }, [status, router, searchParams])
+
+  const fetchStudyMaterial = async (sessionId: string) => {
+    try {
+      const response = await fetch(`/api/session/${sessionId}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.sourceContent) setStudyMaterial(data.sourceContent)
+      }
+    } catch (error) {
+      console.error("Error fetching study material:", error)
+    }
+  }
 
   const fetchConversations = async () => {
     try {
@@ -65,6 +83,7 @@ export default function ChatPage() {
 
   const createNewConversation = () => {
     setActiveConversationId(undefined)
+    setChatKey(k => k + 1) // only remount when user explicitly starts a new chat
   }
 
   const formatDate = (dateString: string) => {
@@ -126,7 +145,10 @@ export default function ChatPage() {
               {conversations.map((conv) => (
                 <div key={conv.id} className="relative group">
                   <button
-                    onClick={() => setActiveConversationId(conv.id)}
+                    onClick={() => {
+                      setActiveConversationId(conv.id)
+                      setChatKey(k => k + 1)
+                    }}
                     className={`w-full text-left p-3 rounded-lg transition-colors pr-9 ${
                       activeConversationId === conv.id
                         ? "bg-zinc-800"
@@ -187,13 +209,19 @@ export default function ChatPage() {
               ? conversations.find((c) => c.id === activeConversationId)?.title || "Chat"
               : "New Chat"}
           </h1>
+          {studyMaterial && (
+            <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-blue-600/20 text-blue-400 border border-blue-600/30">
+              Study material loaded
+            </span>
+          )}
         </div>
 
         {/* Chat Interface */}
         <div className="flex-1 overflow-hidden">
           <ChatInterface
-            key={activeConversationId || "new"}
+            key={chatKey}
             conversationId={activeConversationId}
+            studyMaterial={studyMaterial}
             onConversationCreated={(id) => {
               setActiveConversationId(id)
               fetchConversations()

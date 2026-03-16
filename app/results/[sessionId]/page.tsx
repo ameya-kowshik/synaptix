@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, RotateCcw, Check, X, FileText } from 'lucide-react'
+import { ArrowLeft, RotateCcw, Check, X, FileText, MessageSquare } from 'lucide-react'
 
 interface Flashcard {
   id: string
@@ -157,6 +157,10 @@ export default function ResultsPage() {
             <Button variant="outline" onClick={() => router.push('/history')}>
               <FileText className="h-4 w-4 mr-2" />
               All Sessions
+            </Button>
+            <Button onClick={() => router.push(`/chat?sessionId=${sessionId}`)}>
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Ask AI Tutor
             </Button>
           </div>
 

@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
         type: 'flashcards',
         difficulty,
         tags: tags || null,
+        sourceContent: content,
         flashcards: {
           create: flashcardsData.map(card => ({
             question: card.question,

@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
         type: 'quiz',
         difficulty,
         tags: tags || null,
+        sourceContent: content,
         quizzes: {
           create: quizData.map(question => ({
             question: question.question,

@@ -94,6 +94,7 @@ model StudySession {
   type       String // "flashcards" or "quiz"
   difficulty String // "easy", "medium", "hard"
   tags       String? // comma-separated tags
+  sourceContent String? @db.Text // original study material for RAG
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

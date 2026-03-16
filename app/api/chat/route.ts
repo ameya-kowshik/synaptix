@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { createChatModel } from "@/lib/langchain"
+import { chunkText, retrieveRelevantChunks, buildContext } from "@/lib/rag"
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Get request data
-    const { conversationId, message } = await request.json()
+    const { conversationId, message, studyMaterial } = await request.json()
 
     if (!message) {
       return NextResponse.json(
@@ -33,12 +34,13 @@ export async function POST(request: NextRequest) {
       conversation = await prisma.conversation.findUnique({
         where: { 
           id: conversationId,
-          userId: session.user.id // Security: ensure user owns this conversation
+          userId: session.user.id
         },
         include: { 
           messages: { 
             orderBy: { createdAt: "asc" },
-            take: 10 // Last 10 messages for context
+            // take last 20 messages for context window
+            take: -20,
           } 
         },
       })
@@ -50,11 +52,12 @@ export async function POST(request: NextRequest) {
         )
       }
     } else {
-      // Create new conversation
+      // Create new conversation, storing studyMaterial as context if provided
       conversation = await prisma.conversation.create({
         data: {
           userId: session.user.id,
-          title: message.substring(0, 50) + "...", // Use first part of message as title
+          title: message.length > 50 ? message.substring(0, 50) + "..." : message,
+          ...(studyMaterial && { topic: studyMaterial.substring(0, 5000) }),
         },
         include: { messages: true },
       })
@@ -70,13 +73,28 @@ export async function POST(request: NextRequest) {
     })
 
     // 5. Build conversation history for context
-    // Include all previous messages + the new user message
     const allMessages = [...conversation.messages, newUserMessage]
 
     // 6. Create AI prompt
     const groq = createChatModel()
 
-    const systemPrompt = `You are an expert AI tutor helping a student learn. Be encouraging, clear, and use the Socratic method when appropriate.`
+    // Use studyMaterial from request (new chat) or from stored topic (existing chat)
+    const materialForRAG = studyMaterial || conversation.topic || ""
+
+    // Build RAG context if study material is available
+    let ragContext = ""
+    if (materialForRAG.trim().length > 0) {
+      const chunks = chunkText(materialForRAG)
+      const relevant = retrieveRelevantChunks(chunks, message)
+      ragContext = buildContext(relevant)
+    }
+
+    const systemPrompt = ragContext
+      ? `You are an expert AI tutor helping a student understand their study material. Use the provided context to answer accurately. Be encouraging, clear, and use the Socratic method when appropriate.
+
+Relevant Study Material:
+${ragContext}`
+      : `You are an expert AI tutor helping a student learn. Be encouraging, clear, and use the Socratic method when appropriate.`
 
     // Build messages array with proper format
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [

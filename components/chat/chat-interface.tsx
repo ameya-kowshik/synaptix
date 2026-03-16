@@ -7,11 +7,13 @@ import { Send, Loader2 } from "lucide-react"
 
 interface ChatInterfaceProps {
   conversationId?: string
+  studyMaterial?: string
   onConversationCreated?: (id: string) => void
 }
 
 export function ChatInterface({
   conversationId,
+  studyMaterial,
   onConversationCreated,
 }: ChatInterfaceProps) {
   const [messages, setMessages] = React.useState<Array<{
@@ -47,6 +49,8 @@ export function ChatInterface({
         body: JSON.stringify({
           message: userMessage,
           conversationId: currentConversationId,
+          // Only send studyMaterial on the first message — server stores it after that
+          studyMaterial: currentConversationId ? undefined : studyMaterial,
         }),
       })
 
@@ -69,6 +73,7 @@ export function ChatInterface({
         }])
       }
     } catch (error) {
+      console.error("Chat error:", error)
       setMessages(prev => [...prev, { 
         role: "assistant", 
         content: "Error: Failed to connect to the server" 
@@ -93,7 +98,9 @@ export function ChatInterface({
           <div className="text-center text-muted-foreground py-8">
             <p className="text-lg font-medium mb-2">👋 Hi! I'm your AI tutor</p>
             <p className="text-sm">
-              Ask me anything about your study material!
+              {studyMaterial
+                ? "I've loaded your study material. Ask me anything about it!"
+                : "Ask me anything about your study material!"}
             </p>
           </div>
         )}
