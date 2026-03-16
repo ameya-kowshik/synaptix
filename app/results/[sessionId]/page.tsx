@@ -39,6 +39,9 @@ export default function ResultsPage() {
   const [quizAnswers, setQuizAnswers] = useState<{ [key: string]: number }>({})
   const [showResults, setShowResults] = useState(false)
   const [feedback, setFeedback] = useState<string>('')
+  const [attemptId, setAttemptId] = useState<string>('')
+  const [attemptAnswers, setAttemptAnswers] = useState<any[]>([])
+
 
   useEffect(() => {
     fetchSession()
@@ -79,29 +82,50 @@ export default function ResultsPage() {
 
   const submitQuiz = async () => {
     if (!session?.quizzes) return
-    
-    const userAnswers = session.quizzes.map(q => quizAnswers[q.id] ?? -1)
-    
+
+    // Submit attempt to DB and get breakdown
     try {
-      const response = await fetch('/api/feedback', {
+      const submitResponse = await fetch('/api/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sessionId,
           questions: session.quizzes,
-          userAnswers
-        })
+          userAnswers: quizAnswers,
+        }),
       })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setFeedback(data.feedback)
+
+      if (submitResponse.ok) {
+        const submitData = await submitResponse.json()
+        setAttemptId(submitData.attemptId)
+        setAttemptAnswers(submitData.answers)
       }
     } catch (error) {
-      console.error('Error getting feedback:', error)
+      console.error('Error submitting attempt:', error)
     }
-    
-    setShowResults(true)
+
+  // Also get AI feedback as before
+  try {
+    const feedbackResponse = await fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        questions: session.quizzes,
+        userAnswers: session.quizzes.map(q => quizAnswers[q.id] ?? -1),
+      }),
+    })
+
+    if (feedbackResponse.ok) {
+      const data = await feedbackResponse.json()
+      setFeedback(data.feedback)
+    }
+  } catch (error) {
+    console.error('Error getting feedback:', error)
   }
+
+  setShowResults(true)
+}
+
 
   const getScore = () => {
     if (!session?.quizzes) return { correct: 0, total: 0 }
