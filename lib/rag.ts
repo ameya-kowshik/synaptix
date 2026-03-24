@@ -95,24 +95,28 @@ export async function ingestDocument(sessionId: string, text: string): Promise<v
   if (existing) return
 
   const chunks = chunkText(text)
-  const embeddings = await embedTexts(chunks.map((c) => c.content))
+  if (chunks.length === 0) return
 
-  // Insert each chunk with its vector using a raw query.
-  // The ::vector cast tells pgvector to parse the float array.
+  console.log(`[RAG] Ingesting ${chunks.length} chunks for session ${sessionId}`)
+  const embeddings = await embedTexts(chunks.map((c) => c.content))
+  console.log(`[RAG] Embeddings received, inserting into DB...`)
+
   for (let i = 0; i < chunks.length; i++) {
+    // The vector literal must be injected as raw SQL — Prisma's parameterized
+    // placeholders send it as a typed string value which pgvector can't cast
+    // reliably. $executeRawUnsafe lets us inline it directly.
     const vectorLiteral = `[${embeddings[i].join(",")}]`
-    await prisma.$executeRaw`
-      INSERT INTO document_chunks (id, "sessionId", content, embedding, index, "createdAt")
-      VALUES (
-        gen_random_uuid(),
-        ${sessionId},
-        ${chunks[i].content},
-        ${vectorLiteral}::vector,
-        ${chunks[i].index},
-        now()
-      )
-    `
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO document_chunks (id, "sessionId", content, embedding, index, "createdAt")
+       VALUES (gen_random_uuid(), $1, $2, $3::vector, $4, now())`,
+      sessionId,
+      chunks[i].content,
+      vectorLiteral,
+      chunks[i].index
+    )
   }
+
+  console.log(`[RAG] Ingestion complete for session ${sessionId}`)
 }
 
 // ─── Retrieval ────────────────────────────────────────────────────────────────
@@ -132,13 +136,18 @@ export async function retrieveRelevantChunks(
   const [queryEmbedding] = await embedTexts([query])
   const vectorLiteral = `[${queryEmbedding.join(",")}]`
 
-  const results = await prisma.$queryRaw<{ content: string }[]>`
-    SELECT content
-    FROM document_chunks
-    WHERE "sessionId" = ${sessionId}
-    ORDER BY embedding <=> ${vectorLiteral}::vector
-    LIMIT ${k}
-  `
+  // $queryRawUnsafe used here for the same reason as ingestion —
+  // the vector literal must be inlined as raw SQL, not a parameter.
+  const results = await prisma.$queryRawUnsafe<{ content: string }[]>(
+    `SELECT content
+     FROM document_chunks
+     WHERE "sessionId" = $1
+     ORDER BY embedding <=> $2::vector
+     LIMIT $3`,
+    sessionId,
+    vectorLiteral,
+    k
+  )
 
   return results.map((r) => r.content)
 }
