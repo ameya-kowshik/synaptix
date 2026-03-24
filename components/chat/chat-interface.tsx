@@ -118,7 +118,9 @@ export function ChatInterface({
         body: JSON.stringify({
           message: userMessage,
           conversationId: currentConversationId,
+          // studyMaterial only needed on first message (server stores sessionId after that)
           studyMaterial: currentConversationId ? undefined : studyMaterial,
+          // studySessionId sent on every message so server can always resolve RAG context
           studySessionId,
         }),
       })

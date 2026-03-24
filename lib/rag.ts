@@ -102,7 +102,7 @@ export async function ingestDocument(sessionId: string, text: string): Promise<v
   for (let i = 0; i < chunks.length; i++) {
     const vectorLiteral = `[${embeddings[i].join(",")}]`
     await prisma.$executeRaw`
-      INSERT INTO document_chunks (id, session_id, content, embedding, index, created_at)
+      INSERT INTO document_chunks (id, "sessionId", content, embedding, index, "createdAt")
       VALUES (
         gen_random_uuid(),
         ${sessionId},
@@ -135,7 +135,7 @@ export async function retrieveRelevantChunks(
   const results = await prisma.$queryRaw<{ content: string }[]>`
     SELECT content
     FROM document_chunks
-    WHERE session_id = ${sessionId}
+    WHERE "sessionId" = ${sessionId}
     ORDER BY embedding <=> ${vectorLiteral}::vector
     LIMIT ${k}
   `

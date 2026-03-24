@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     let conversation
     
     if (conversationId) {
-      // Fetch existing conversation
+      // Fetch existing conversation — include studySessionId so RAG can use it
       conversation = await prisma.conversation.findUnique({
         where: { 
           id: conversationId,
@@ -39,9 +39,8 @@ export async function POST(request: NextRequest) {
         include: { 
           messages: { 
             orderBy: { createdAt: "asc" },
-            // take last 20 messages for context window
             take: -20,
-          } 
+          },
         },
       })
       
@@ -79,18 +78,42 @@ export async function POST(request: NextRequest) {
     const groq = createChatModel()
 
     // Resolve which session to use for RAG — prefer the one linked to this
-    // conversation, fall back to the sessionId sent with the current request
-    const ragSessionId = conversation.studySessionId || studySessionId
+    // conversation, fall back to the sessionId sent with the current request.
+    // studySessionId is always sent from the client on every message.
+    const ragSessionId = studySessionId || conversation.studySessionId
 
-    // Build RAG context via pgvector similarity search.
-    // If no session is linked we skip RAG and the tutor answers generically.
     let ragContext = ""
     if (ragSessionId) {
       try {
+        // Try vector search first
         const chunks = await retrieveRelevantChunks(ragSessionId, message)
-        ragContext = buildContext(chunks)
+
+        if (chunks.length > 0) {
+          ragContext = buildContext(chunks)
+        } else {
+          // No vectors yet (old session or ingestion pending) —
+          // fall back to fetching the actual flashcards/quizzes from the DB
+          // so the LLM always has the content it needs.
+          const studySession = await prisma.studySession.findUnique({
+            where: { id: ragSessionId },
+            include: { flashcards: true, quizzes: true },
+          })
+
+          if (studySession?.flashcards?.length) {
+            ragContext = studySession.flashcards
+              .map((f, i) => `Flashcard ${i + 1}\nQ: ${f.question}\nA: ${f.answer}`)
+              .join("\n\n")
+          } else if (studySession?.quizzes?.length) {
+            ragContext = studySession.quizzes
+              .map((q, i) =>
+                `Question ${i + 1}: ${q.question}\n` +
+                q.options.map((o, oi) => `  ${String.fromCharCode(65 + oi)}. ${o}`).join("\n") +
+                `\nCorrect: ${String.fromCharCode(65 + q.correct)}`
+              )
+              .join("\n\n")
+          }
+        }
       } catch (err) {
-        // Non-fatal — degrade gracefully if embeddings fail
         console.error("RAG retrieval failed:", err)
       }
     }
@@ -123,7 +146,7 @@ Use this to proactively address weak areas in your tutoring.`
 
     const systemPrompt = [
       ragContext
-        ? `You are an expert AI tutor helping a student understand their study material. Use the provided context to answer accurately. Be encouraging, clear, and use the Socratic method when appropriate.\n\nRelevant Study Material:\n${ragContext}`
+        ? `You are an expert AI tutor. The student's study material is provided below — use it as your primary source of truth. Answer accurately, be encouraging, and use the Socratic method when appropriate.\n\nStudy Material:\n${ragContext}`
         : `You are an expert AI tutor helping a student learn. Be encouraging, clear, and use the Socratic method when appropriate.`,
       analyticsContext,
     ].filter(Boolean).join("\n\n")
