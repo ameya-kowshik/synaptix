@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { generateQuiz } from '@/lib/ai'
+import { ingestDocument } from '@/lib/rag'
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,6 +49,12 @@ export async function POST(request: NextRequest) {
         quizzes: true
       }
     })
+
+    // Ingest document chunks for vector RAG — runs once per session
+    // Errors here are non-fatal; chat will still work, just without RAG context
+    ingestDocument(studySession.id, content).catch((err) =>
+      console.error("RAG ingestion failed:", err)
+    )
 
     return NextResponse.json({
       sessionId: studySession.id,

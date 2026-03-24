@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { createChatModel } from "@/lib/langchain"
-import { chunkText, retrieveRelevantChunks, buildContext } from "@/lib/rag"
+import { retrieveRelevantChunks, buildContext } from "@/lib/rag"
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Get request data
-    const { conversationId, message, studyMaterial } = await request.json()
+    const { conversationId, message, studyMaterial, studySessionId } = await request.json()
 
     if (!message) {
       return NextResponse.json(
@@ -52,12 +52,12 @@ export async function POST(request: NextRequest) {
         )
       }
     } else {
-      // Create new conversation, storing studyMaterial as context if provided
+      // Create new conversation, storing studySessionId for RAG on future messages
       conversation = await prisma.conversation.create({
         data: {
           userId: session.user.id,
           title: message.length > 50 ? message.substring(0, 50) + "..." : message,
-          ...(studyMaterial && { topic: studyMaterial.substring(0, 5000) }),
+          ...(studySessionId && { studySessionId }),
         },
         include: { messages: true },
       })
@@ -78,23 +78,55 @@ export async function POST(request: NextRequest) {
     // 6. Create AI prompt
     const groq = createChatModel()
 
-    // Use studyMaterial from request (new chat) or from stored topic (existing chat)
-    const materialForRAG = studyMaterial || conversation.topic || ""
+    // Resolve which session to use for RAG — prefer the one linked to this
+    // conversation, fall back to the sessionId sent with the current request
+    const ragSessionId = conversation.studySessionId || studySessionId
 
-    // Build RAG context if study material is available
+    // Build RAG context via pgvector similarity search.
+    // If no session is linked we skip RAG and the tutor answers generically.
     let ragContext = ""
-    if (materialForRAG.trim().length > 0) {
-      const chunks = chunkText(materialForRAG)
-      const relevant = retrieveRelevantChunks(chunks, message)
-      ragContext = buildContext(relevant)
+    if (ragSessionId) {
+      try {
+        const chunks = await retrieveRelevantChunks(ragSessionId, message)
+        ragContext = buildContext(chunks)
+      } catch (err) {
+        // Non-fatal — degrade gracefully if embeddings fail
+        console.error("RAG retrieval failed:", err)
+      }
     }
 
-    const systemPrompt = ragContext
-      ? `You are an expert AI tutor helping a student understand their study material. Use the provided context to answer accurately. Be encouraging, clear, and use the Socratic method when appropriate.
+    // Fetch latest quiz attempt for analytics context
+    let analyticsContext = ""
+    if (studySessionId && session.user.id) {
+      const latestAttempt = await prisma.quizAttempt.findFirst({
+        where: { sessionId: studySessionId, userId: session.user.id },
+        orderBy: { createdAt: "desc" },
+      })
 
-Relevant Study Material:
-${ragContext}`
-      : `You are an expert AI tutor helping a student learn. Be encouraging, clear, and use the Socratic method when appropriate.`
+      if (latestAttempt) {
+        const answers = latestAttempt.answers as Array<{
+          question: string
+          isCorrect: boolean
+          selectedOption: string
+          correctOption: string
+        }>
+        const wrongAnswers = answers.filter(a => !a.isCorrect)
+        analyticsContext = `Student's Quiz Performance (most recent attempt):
+- Score: ${latestAttempt.score}/${latestAttempt.total} (${Math.round((latestAttempt.score / latestAttempt.total) * 100)}%)
+${wrongAnswers.length > 0
+  ? `- Questions answered incorrectly:\n${wrongAnswers.map(a => `  • "${a.question}" — student answered "${a.selectedOption}", correct was "${a.correctOption}"`).join("\n")}`
+  : "- All questions answered correctly"}
+
+Use this to proactively address weak areas in your tutoring.`
+      }
+    }
+
+    const systemPrompt = [
+      ragContext
+        ? `You are an expert AI tutor helping a student understand their study material. Use the provided context to answer accurately. Be encouraging, clear, and use the Socratic method when appropriate.\n\nRelevant Study Material:\n${ragContext}`
+        : `You are an expert AI tutor helping a student learn. Be encouraging, clear, and use the Socratic method when appropriate.`,
+      analyticsContext,
+    ].filter(Boolean).join("\n\n")
 
     // Build messages array with proper format
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [

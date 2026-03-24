@@ -3,7 +3,7 @@
 import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { User, LogOut, History, MessageSquare } from "lucide-react"
+import { User, LogOut, History, MessageSquare, BookOpen } from "lucide-react"
 import { BarChart2 } from "lucide-react"
 
 export function Navigation() {
@@ -39,6 +39,13 @@ export function Navigation() {
                   <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
                     <BarChart2 className="w-4 h-4 mr-2" />
                     Analytics
+                  </Button>
+                </Link>
+
+                <Link href="/library">
+                  <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
+                    <BookOpen className="w-4 h-4 mr-2" />
+                    Library
                   </Button>
                 </Link>
               

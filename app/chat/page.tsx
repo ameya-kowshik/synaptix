@@ -16,6 +16,14 @@ interface Conversation {
   }
 }
 
+interface StudySessionOption {
+  id: string
+  type: string
+  difficulty: string
+  tags?: string
+  createdAt: string
+}
+
 export default function ChatPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -24,15 +32,21 @@ export default function ChatPage() {
   const [activeConversationId, setActiveConversationId] = React.useState<string>()
   const [chatKey, setChatKey] = React.useState(0)
   const [studyMaterial, setStudyMaterial] = React.useState<string>()
+  const [studySessionId, setStudySessionId] = React.useState<string>()
+  const [availableSessions, setAvailableSessions] = React.useState<StudySessionOption[]>([])
   const [loading, setLoading] = React.useState(true)
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
 
   React.useEffect(() => {
     if (status === "authenticated") {
       fetchConversations()
+      fetchAvailableSessions()
       // Load study material from session if sessionId is in URL
       const sessionId = searchParams.get("sessionId")
-      if (sessionId) fetchStudyMaterial(sessionId)
+      if (sessionId) {
+        fetchStudyMaterial(sessionId)
+        setStudySessionId(sessionId)
+      }
     } else if (status === "unauthenticated") {
       router.push("/auth/signin")
     }
@@ -61,6 +75,18 @@ export default function ChatPage() {
       console.error("Error fetching conversations:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchAvailableSessions = async () => {
+    try {
+      const response = await fetch("/api/sessions")
+      if (response.ok) {
+        const data = await response.json()
+        setAvailableSessions(data.sessions)
+      }
+    } catch (error) {
+      console.error("Error fetching sessions:", error)
     }
   }
 
@@ -222,6 +248,8 @@ export default function ChatPage() {
             key={chatKey}
             conversationId={activeConversationId}
             studyMaterial={studyMaterial}
+            studySessionId={studySessionId}
+            availableSessions={availableSessions}
             onConversationCreated={(id) => {
               setActiveConversationId(id)
               fetchConversations()

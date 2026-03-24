@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
+    "@huggingface/inference": "^4.13.15",
     "@langchain/community": "^1.1.23",
     "@langchain/groq": "^1.1.5",
     "@prisma/client": "^5.22.0",

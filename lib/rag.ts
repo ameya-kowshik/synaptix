@@ -1,7 +1,27 @@
 /**
- * RAG (Retrieval-Augmented Generation) utilities
- * Uses BM25-style keyword retrieval — no external embedding API needed.
+ * RAG (Retrieval-Augmented Generation) — vector-based implementation
+ *
+ * Flow:
+ *   INGESTION (once per study session):
+ *     sourceContent → split into chunks → embed each chunk via HuggingFace
+ *     → store chunk text + vector in document_chunks table
+ *
+ *   RETRIEVAL (per chat message):
+ *     user query → embed query → pgvector cosine similarity search
+ *     → return top-k most semantically relevant chunks
+ *     → inject into AI system prompt as context
  */
+
+import { HfInference } from "@huggingface/inference"
+import { prisma } from "@/lib/prisma"
+
+const hf = new HfInference(process.env.HUGGINGFACE_API_KEY)
+
+// Model: all-MiniLM-L6-v2 produces 384-dimensional vectors.
+// It's fast, free, and well-suited for semantic similarity tasks.
+const EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+
+// ─── Chunking ────────────────────────────────────────────────────────────────
 
 interface Chunk {
   content: string
@@ -9,7 +29,11 @@ interface Chunk {
 }
 
 /**
- * Split text into overlapping chunks
+ * Splits raw text into overlapping chunks.
+ * Overlap ensures that sentences spanning a chunk boundary aren't lost.
+ *
+ * chunkSize: ~800 chars ≈ ~150 tokens, fits well within the model's 256-token limit
+ * overlap:   150 chars of shared context between adjacent chunks
  */
 export function chunkText(text: string, chunkSize = 800, overlap = 150): Chunk[] {
   const chunks: Chunk[] = []
@@ -22,74 +46,109 @@ export function chunkText(text: string, chunkSize = 800, overlap = 150): Chunk[]
     start += chunkSize - overlap
   }
 
-  return chunks.filter((c) => c.content.length > 50)
+  // Drop chunks that are too short to be meaningful
+  return chunks.filter((c) => c.content.length > 30)
 }
 
-/**
- * Tokenize text into lowercase words, removing stopwords
- */
-function tokenize(text: string): string[] {
-  const stopwords = new Set([
-    "a","an","the","is","it","in","on","at","to","for","of","and","or","but",
-    "with","this","that","are","was","were","be","been","being","have","has",
-    "had","do","does","did","will","would","could","should","may","might","can",
-    "not","no","so","if","as","by","from","up","about","into","through","during",
-    "i","you","he","she","we","they","what","which","who","how","when","where",
-  ])
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length > 2 && !stopwords.has(w))
-}
+// ─── Embedding ───────────────────────────────────────────────────────────────
 
 /**
- * BM25-style scoring for a chunk against a query
+ * Sends a batch of strings to HuggingFace and returns one float[] per string.
+ * We use feature-extraction (mean-pooled sentence embeddings).
+ *
+ * HuggingFace free tier rate-limits to ~1000 requests/day, which is fine
+ * for ingestion since we only embed once per session.
  */
-function scoreChunk(chunk: Chunk, queryTokens: string[]): number {
-  const chunkTokens = tokenize(chunk.content)
-  const termFreq: Record<string, number> = {}
-  for (const t of chunkTokens) termFreq[t] = (termFreq[t] || 0) + 1
+async function embedTexts(texts: string[]): Promise<number[][]> {
+  const embeddings: number[][] = []
 
-  let score = 0
-  const k1 = 1.5
-  const b = 0.75
-  const avgLen = 600 // approximate average chunk length in tokens
+  for (const text of texts) {
+    const result = await hf.featureExtraction({
+      model: EMBEDDING_MODEL,
+      inputs: text,
+    })
 
-  for (const qt of queryTokens) {
-    const tf = termFreq[qt] || 0
-    if (tf === 0) continue
-    const idf = Math.log(1 + 1 / (0.5 + tf)) // simplified IDF
-    const norm = (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (
-chunkTokens.length / avgLen)))
-    score += idf * norm
+    // featureExtraction can return nested arrays (per-token) or a flat array
+    // (sentence-level). We always want the sentence-level flat array.
+    const flat = Array.isArray(result[0]) ? (result as number[][])[0] : (result as number[])
+    embeddings.push(flat)
   }
 
-  return score
+  return embeddings
 }
 
+// ─── Ingestion ───────────────────────────────────────────────────────────────
+
 /**
- * Retrieve the top-k most relevant chunks for a query
+ * Call this once when a study session is created (in the generate routes).
+ *
+ * It chunks the source content, embeds every chunk, then bulk-inserts
+ * into document_chunks using a raw pgvector INSERT so Prisma doesn't
+ * need to understand the vector type.
+ *
+ * If chunks already exist for this session (e.g. a retry), we skip ingestion
+ * to avoid duplicates.
  */
-export function retrieveRelevantChunks(
-  chunks: Chunk[],
+export async function ingestDocument(sessionId: string, text: string): Promise<void> {
+  // Idempotency check — don't re-embed if already done
+  const existing = await prisma.documentChunk.findFirst({ where: { sessionId } })
+  if (existing) return
+
+  const chunks = chunkText(text)
+  const embeddings = await embedTexts(chunks.map((c) => c.content))
+
+  // Insert each chunk with its vector using a raw query.
+  // The ::vector cast tells pgvector to parse the float array.
+  for (let i = 0; i < chunks.length; i++) {
+    const vectorLiteral = `[${embeddings[i].join(",")}]`
+    await prisma.$executeRaw`
+      INSERT INTO document_chunks (id, session_id, content, embedding, index, created_at)
+      VALUES (
+        gen_random_uuid(),
+        ${sessionId},
+        ${chunks[i].content},
+        ${vectorLiteral}::vector,
+        ${chunks[i].index},
+        now()
+      )
+    `
+  }
+}
+
+// ─── Retrieval ────────────────────────────────────────────────────────────────
+
+/**
+ * Given a sessionId and the user's query, returns the top-k chunks
+ * whose embeddings are closest to the query embedding.
+ *
+ * <=> is pgvector's cosine distance operator (lower = more similar).
+ * We ORDER BY distance ASC and take the first k rows.
+ */
+export async function retrieveRelevantChunks(
+  sessionId: string,
   query: string,
-  k = 3
-): string[] {
-  const queryTokens = tokenize(query)
-  if (queryTokens.length === 0) return chunks.slice(0, k).map((c) => c.content)
+  k = 4
+): Promise<string[]> {
+  const [queryEmbedding] = await embedTexts([query])
+  const vectorLiteral = `[${queryEmbedding.join(",")}]`
 
-  const scored = chunks
-    .map((chunk) => ({ chunk, score: scoreChunk(chunk, queryTokens) }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, k)
+  const results = await prisma.$queryRaw<{ content: string }[]>`
+    SELECT content
+    FROM document_chunks
+    WHERE session_id = ${sessionId}
+    ORDER BY embedding <=> ${vectorLiteral}::vector
+    LIMIT ${k}
+  `
 
-  return scored.map((s) => s.chunk.content)
+  return results.map((r) => r.content)
 }
 
+// ─── Context builder ─────────────────────────────────────────────────────────
+
 /**
- * Build a context string from retrieved chunks
+ * Joins retrieved chunks into a single context string for the AI prompt.
+ * The --- separator helps the model distinguish between chunks.
  */
-export function buildContext(relevantChunks: string[]): string {
-  return relevantChunks.join("\n\n---\n\n")
+export function buildContext(chunks: string[]): string {
+  return chunks.join("\n\n---\n\n")
 }
