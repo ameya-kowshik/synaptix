@@ -3,8 +3,7 @@
 import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { User, LogOut, History, MessageSquare, BookOpen } from "lucide-react"
-import { BarChart2 } from "lucide-react"
+import { User, LogOut, History, MessageSquare, BookOpen, BarChart2, Sparkles } from "lucide-react"
 
 export function Navigation() {
   const { data: session, status } = useSession()
@@ -14,8 +13,9 @@ export function Navigation() {
       <nav className="border-b border-zinc-800 bg-black/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
-            <Link href="/" className="text-xl font-bold text-white">
-              AutoLearn
+            <Link href="/" className="text-xl font-bold text-white flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Lectica
             </Link>
             <div className="w-20 h-8 bg-zinc-800 animate-pulse rounded"></div>
           </div>
@@ -28,9 +28,10 @@ export function Navigation() {
     <nav className="border-b border-zinc-800 bg-black/50 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
-          <Link href="/" className="text-xl font-bold text-white">
-            AutoLearn
-          </Link>
+          <Link href={session ? "/generate" : "/"} className="text-xl font-bold text-white flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Lectica
+            </Link>
 
           <div className="flex items-center gap-4">
             {session ? (
