@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Lectica - AI-Powered Study Tools",
+  title: "Synaptix - AI-Powered Study Tools",
   description: "Transform your study materials into interactive flashcards and quizzes using AI",
 };
 

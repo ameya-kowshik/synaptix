@@ -32,7 +32,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between h-16 items-center">
           <span className="text-xl font-bold text-white flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            Lectica
+            Synaptix
           </span>
           <div className="flex items-center gap-2">
             <Link href="/auth/signin">
@@ -56,7 +56,7 @@ export default function Home() {
           <span className="text-primary">not harder.</span>
         </h1>
         <p className="text-lg text-muted-foreground max-w-xl mx-auto mb-10">
-          Upload your notes or paste any text. Lectica turns it into flashcards, quizzes, and a personal AI tutor — instantly.
+          Upload your notes or paste any text. Synaptix turns it into flashcards, quizzes, and a personal AI tutor — instantly.
         </p>
         <div className="flex items-center justify-center gap-4">
           <Link href="/auth/signup">
@@ -124,7 +124,7 @@ export default function Home() {
       </section>
 
       <footer className="border-t border-zinc-800 py-6 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} Lectica. Built with Next.js & Groq.
+        © {new Date().getFullYear()} Synaptix. Built with Next.js & Groq.
       </footer>
     </div>
   )

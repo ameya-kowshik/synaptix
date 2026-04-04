@@ -15,7 +15,7 @@ export function Navigation() {
           <div className="flex justify-between h-16 items-center">
             <Link href="/" className="text-xl font-bold text-white flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              Lectica
+              Synaptix
             </Link>
             <div className="w-20 h-8 bg-zinc-800 animate-pulse rounded"></div>
           </div>
@@ -30,7 +30,7 @@ export function Navigation() {
         <div className="flex justify-between h-16 items-center">
           <Link href={session ? "/generate" : "/"} className="text-xl font-bold text-white flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              Lectica
+              Synaptix
             </Link>
 
           <div className="flex items-center gap-4">
