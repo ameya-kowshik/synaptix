@@ -42,7 +42,7 @@ export default function AnalyticsPage() {
   useEffect(() => {
     if (status === "unauthenticated") router.push("/auth/signin")
     if (status === "authenticated") fetchAnalytics()
-  }, [status])
+  }, [status, router])
 
   const fetchAnalytics = async () => {
     try {

@@ -4,6 +4,19 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 })
 
+/**
+ * Strips markdown code fences that LLMs sometimes wrap JSON in,
+ * then parses. Throws if the result is not valid JSON.
+ */
+function parseJsonResponse(raw: string): unknown {
+  const stripped = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim()
+  return JSON.parse(stripped)
+}
+
 // PDF extraction is now handled in the /api/upload route
 
 export async function generateFlashcards(
@@ -58,7 +71,7 @@ Only return the JSON array, no other text.`
       throw new Error("No response from AI")
     }
 
-    return JSON.parse(response)
+    return parseJsonResponse(response) as Array<{ question: string; answer: string }>
   } catch (error) {
     console.error("Error generating flashcards:", error)
     throw new Error("Failed to generate flashcards")
@@ -120,7 +133,7 @@ Only return the JSON array, no other text.`
       throw new Error("No response from AI")
     }
 
-    return JSON.parse(response)
+    return parseJsonResponse(response) as Array<{ question: string; options: string[]; correct: number }>
   } catch (error) {
     console.error("Error generating quiz:", error)
     throw new Error("Failed to generate quiz")

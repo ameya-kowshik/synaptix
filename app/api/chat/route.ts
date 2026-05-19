@@ -39,7 +39,6 @@ export async function POST(request: NextRequest) {
         include: { 
           messages: { 
             orderBy: { createdAt: "asc" },
-            take: -20,
           },
         },
       })

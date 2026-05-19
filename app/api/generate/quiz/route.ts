@@ -21,11 +21,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const questionCount = Math.min(Math.max(parseInt(count), 1), 20)
+
     // Generate quiz using AI
     const quizData = await generateQuiz(
       content,
       difficulty,
-      parseInt(count),
+      questionCount,
       tags
     )
 

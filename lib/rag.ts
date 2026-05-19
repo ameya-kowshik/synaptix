@@ -60,21 +60,17 @@ export function chunkText(text: string, chunkSize = 800, overlap = 150): Chunk[]
  * for ingestion since we only embed once per session.
  */
 async function embedTexts(texts: string[]): Promise<number[][]> {
-  const embeddings: number[][] = []
+  const results = await Promise.all(
+    texts.map((text) =>
+      hf.featureExtraction({ model: EMBEDDING_MODEL, inputs: text })
+    )
+  )
 
-  for (const text of texts) {
-    const result = await hf.featureExtraction({
-      model: EMBEDDING_MODEL,
-      inputs: text,
-    })
-
+  return results.map((result) => {
     // featureExtraction can return nested arrays (per-token) or a flat array
     // (sentence-level). We always want the sentence-level flat array.
-    const flat = Array.isArray(result[0]) ? (result as number[][])[0] : (result as number[])
-    embeddings.push(flat)
-  }
-
-  return embeddings
+    return Array.isArray(result[0]) ? (result as number[][])[0] : (result as number[])
+  })
 }
 
 // ─── Ingestion ───────────────────────────────────────────────────────────────

@@ -105,27 +105,28 @@ export default function ResultsPage() {
       console.error('Error submitting attempt:', error)
     }
 
-  // Also get AI feedback as before
-  try {
-    const feedbackResponse = await fetch('/api/feedback', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        questions: session.quizzes,
-        userAnswers: session.quizzes.map(q => quizAnswers[q.id] ?? -1),
-      }),
-    })
+    // Get AI feedback in parallel — non-fatal if it fails
+    try {
+      const feedbackResponse = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questions: session.quizzes,
+          userAnswers: session.quizzes.map(q => quizAnswers[q.id] ?? -1),
+        }),
+      })
 
-    if (feedbackResponse.ok) {
-      const data = await feedbackResponse.json()
-      setFeedback(data.feedback)
+      if (feedbackResponse.ok) {
+        const data = await feedbackResponse.json()
+        setFeedback(data.feedback)
+      }
+    } catch (error) {
+      console.error('Error getting feedback:', error)
     }
-  } catch (error) {
-    console.error('Error getting feedback:', error)
-  }
 
-  setShowResults(true)
-}
+    // Show results regardless — attempt is recorded, feedback is a bonus
+    setShowResults(true)
+  }
 
 
   const getScore = () => {

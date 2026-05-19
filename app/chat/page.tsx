@@ -173,7 +173,6 @@ export default function ChatPage() {
                   <button
                     onClick={() => {
                       setActiveConversationId(conv.id)
-                      setChatKey(k => k + 1)
                     }}
                     className={`w-full text-left p-3 rounded-lg transition-colors pr-9 ${
                       activeConversationId === conv.id

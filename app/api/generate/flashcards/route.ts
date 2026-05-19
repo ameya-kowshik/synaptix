@@ -21,11 +21,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const cardCount = Math.min(Math.max(parseInt(count), 1), 20)
+
     // Generate flashcards using AI
     const flashcardsData = await generateFlashcards(
       content,
       difficulty,
-      parseInt(count),
+      cardCount,
       tags
     )
 
