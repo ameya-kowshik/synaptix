@@ -11,7 +11,7 @@ import {
   Tooltip, ResponsiveContainer, BarChart, Bar
 } from "recharts"
 import { ArrowLeft, Brain, TrendingUp, AlertTriangle } from "lucide-react"
-
+// comment check
 interface ScoreTrendPoint {
   date: string
   percentage: number
@@ -32,7 +32,7 @@ interface AnalyticsData {
   scoreTrend: ScoreTrendPoint[]
   weakAreas: WeakArea[]
 }
-
+//commen t check
 export default function AnalyticsPage() {
   const router = useRouter()
   const { data: session, status } = useSession()
